@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Circular Audio Spectrum Visualizer</title>
+  <style>
+    body {
+      margin: 0;
+      background: radial-gradient(circle, #000, #111, #222);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      overflow: hidden;
+    }
+    canvas {
+      display: block;
+    }
+    input[type="file"] {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      background: rgba(0, 0, 0, 0.5);
+      color: white;
+      padding: 10px 15px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      z-index: 10;
+    }
+  </style>
+</head>
+<body>
+  <input type="file" id="audioFile" accept="audio/*">
+  <canvas id="visualizer"></canvas>
+  <script>
+    const canvas = document.getElementById('visualizer');
+    const ctx = canvas.getContext('2d');
+    const audioFile = document.getElementById('audioFile');
+    
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    let audioContext;
+    let analyser;
+    let bufferLength;
+    let dataArray;
+    let source;
+
+    audioFile.addEventListener('change', (event) => {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const audio = new Audio(URL.createObjectURL(file));
+      audio.crossOrigin = "anonymous";
+      audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      source = audioContext.createMediaElementSource(audio);
+
+      analyser = audioContext.createAnalyser();
+      analyser.fftSize = 256; // Controls the number of frequency bars
+      bufferLength = analyser.frequencyBinCount;
+      dataArray = new Uint8Array(bufferLength);
+
+      source.connect(analyser);
+      analyser.connect(audioContext.destination);
+
+      audio.play();
+      renderVisualizer();
+    });
+
+    function renderVisualizer() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      analyser.getByteFrequencyData(dataArray);
+
+      const centerX = canvas.width / 2;
+      const centerY = canvas.height / 2;
+      const radius = 200; // Base circle radius
+      const barWidth = 2; // Thickness of bars
+      const barCount = bufferLength;
+      const angleStep = (Math.PI * 2) / barCount;
+
+      for (let i = 0; i < barCount; i++) {
+        const value = dataArray[i];
+        const barHeight = value / 2; // Adjust bar height
+        const angle = i * angleStep;
+
+        // Calculate start and end points of each bar
+        const xStart = centerX + Math.cos(angle) * radius;
+        const yStart = centerY + Math.sin(angle) * radius;
+        const xEnd = centerX + Math.cos(angle) * (radius + barHeight);
+        const yEnd = centerY + Math.sin(angle) * (radius + barHeight);
+
+        // Dynamic colors for bars
+        const color = `hsl(${i * 360 / barCount}, 100%, 50%)`;
+        ctx.strokeStyle = color;
+        ctx.lineWidth = barWidth;
+
+        // Draw the bars
+        ctx.beginPath();
+        ctx.moveTo(xStart, yStart);
+        ctx.lineTo(xEnd, yEnd);
+        ctx.stroke();
+      }
+
+      // Loop the animation
+      requestAnimationFrame(renderVisualizer);
+    }
+
+    window.addEventListener('resize', () => {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    });
+  </script>
+</body>
+</html>
